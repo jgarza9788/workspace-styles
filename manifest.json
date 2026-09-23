@@ -1,0 +1,104 @@
+{
+  "schemaVersion": 1,
+  "id": "jgarza.workspace-styles",
+  "name": "Workspace Styles",
+  "version": "1.0.0",
+  "author": "jgarza",
+  "license": "MIT",
+  "description": "Workspace indicator with an active-workspace decoration (pill, rounded square, underline, bold, glow), a switch animation (none, pop, hypr-pop, glitch, neon), a glyph set (numbers, roman numerals, kanji, dice, dots, Nerd Font icons), and an indicator color role (accent, selection, muted) all chosen independently, so you can mix and match.",
+  "kinds": [
+    "bar-widget"
+  ],
+  "entryPoints": {
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Workspace Styles",
+    "description": "Workspace 1..N switcher with an independently pickable indicator shape, animation, color, and glyph set.",
+    "category": "Compositor",
+    "allowMultiple": false,
+    "defaultSection": "left",
+    "defaults": {
+      "count": 9,
+      "decoration": "pill",
+      "animation": "none",
+      "glyphSet": "numbers",
+      "indicatorColor": "accent",
+      "customGlyphs": ""
+    },
+    "schema": [
+      {
+        "key": "count",
+        "type": "integer",
+        "label": "Workspace count",
+        "description": "How many workspace slots to show, left to right. A live workspace beyond this count still appears if it's occupied or focused.",
+        "min": 2,
+        "max": 10,
+        "step": 1,
+        "defaultValue": 9
+      },
+      {
+        "key": "decoration",
+        "type": "enum",
+        "label": "Indicator",
+        "description": "How the active workspace is highlighted.",
+        "defaultValue": "pill",
+        "options": [
+          { "value": "pill", "label": "Pill", "description": "Rounded accent capsule fills the active cell." },
+          { "value": "roundedSquare", "label": "Rounded Square", "description": "Like Pill, but with squared-off corners instead of a full capsule." },
+          { "value": "underline", "label": "Underline", "description": "Minimal accent bar under the active cell." },
+          { "value": "bold", "label": "Bold", "description": "No shape - the active glyph just goes bold and bright." },
+          { "value": "glow", "label": "Glow", "description": "A soft glow fills the active cell behind the glyph - no shape, no border." }
+        ]
+      },
+      {
+        "key": "animation",
+        "type": "enum",
+        "label": "Animation",
+        "description": "Motion played on the active glyph every time focus switches to it. Independent of Indicator - combine any animation with any indicator.",
+        "defaultValue": "none",
+        "options": [
+          { "value": "none", "label": "None", "description": "No animation on switch - the indicator just appears." },
+          { "value": "pop", "label": "Pop", "description": "The active glyph scales up briefly on every switch." },
+          { "value": "hyprPop", "label": "Hypr-pop", "description": "A much bigger, springier multi-stage bounce + rotation wobble, plus its own expanding shockwave ring - deliberately over the top." },
+          { "value": "glitch", "label": "Glitch", "description": "A bigger digital-glitch burst - rapid position jitter with a color-tint flash and a cyan/magenta chromatic-aberration fringe." },
+          { "value": "neon", "label": "Neon", "description": "The glyph flickers through brightness variations of your theme's accent color, with a lick-of-flame scale wobble." }
+        ]
+      },
+      {
+        "key": "glyphSet",
+        "type": "enum",
+        "label": "Glyphs",
+        "description": "What's drawn inside each workspace cell.",
+        "defaultValue": "numbers",
+        "options": [
+          { "value": "numbers", "label": "Numbers", "description": "Plain workspace numbers (10 shows as 0)." },
+          { "value": "roman", "label": "Roman", "description": "Roman numerals, I through X." },
+          { "value": "kanji", "label": "Japanese", "description": "Japanese numerals, 一 through 十." },
+          { "value": "dice", "label": "Dice", "description": "Die-face icons 1-6, boxed numerals 7-10." },
+          { "value": "dots", "label": "Dots", "description": "No numerals - a plain position dot per workspace." },
+          { "value": "nerdIcons", "label": "Custom icons", "description": "Your own Nerd Font glyph or emoji per workspace." }
+        ]
+      },
+      {
+        "key": "indicatorColor",
+        "type": "enum",
+        "label": "Indicator color",
+        "description": "Which theme color role paints the active indicator.",
+        "defaultValue": "accent",
+        "options": [
+          { "value": "accent", "label": "Accent", "description": "Your theme's accent color." },
+          { "value": "selection", "label": "Selection", "description": "Your theme's selection/highlight color." },
+          { "value": "muted", "label": "Muted", "description": "Your theme's muted, lower-contrast color." }
+        ]
+      },
+      {
+        "key": "customGlyphs",
+        "type": "string",
+        "label": "Custom icon glyphs",
+        "description": "Comma-separated glyph or emoji per workspace slot, left to right. Only used by the Custom icons glyph set; empty slots fall back to the workspace number.",
+        "defaultValue": ""
+      }
+    ]
+  }
+}
