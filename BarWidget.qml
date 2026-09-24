@@ -10,7 +10,8 @@ import "Glyphs.js" as Glyphs
 
 // Workspace 1..N switcher with four independently pickable settings: an
 // active-workspace decoration (pill / rounded square / underline / bold /
-// glow), a switch animation (none / pop / hypr-pop / glitch / neon), a
+// glow), a switch animation (none / pop / hypr-pop / glitch / neon /
+// decode / ember burst), a
 // glyph set (numbers / roman / kanji / dice / dots / user Nerd Font
 // glyphs), and an indicator color role (accent / selection / muted) -
 // mixed and matched from the right-click settings popup.
@@ -65,7 +66,7 @@ BarWidget {
     path: Quickshell.env("HOME") + "/.local/state/omarchy/current/theme/colors.toml"
     watchChanges: true
     printErrors: false
-    onLoaded: root.themeColors = Model.parseThemeColors(text(), ["accent", "selection", "muted"])
+    onLoaded: root.themeColors = Model.parseThemeColors(text(), Model.THEME_COLOR_KEYS)
     onFileChanged: reload()
     onLoadFailed: root.themeColors = {}
   }
@@ -83,6 +84,15 @@ BarWidget {
   // this specifically, so its flicker reads as an accent thing even when
   // the rest of the indicator is tinted Selection/Muted.
   readonly property color themeAccentColor: root.themeColors["accent"] || Color.accent
+
+  // Theme-derived palettes for the two multi-color animations (see
+  // Model.EMBER_PALETTE_KEYS / DECODE_PALETTE_KEYS). Plain hex strings,
+  // re-read live on a theme switch along with themeColors.
+  readonly property var emberPalette: Model.themePalette(
+    root.themeColors, Model.EMBER_PALETTE_KEYS, String(root.themeAccentColor))
+  readonly property var decodePalette: Model.themePalette(
+    root.themeColors, Model.DECODE_PALETTE_KEYS, String(root.themeAccentColor))
+  readonly property var decodeGlyphPool: Glyphs.decodePool(root.glyphSet, root.customGlyphsList)
   readonly property string customGlyphsRaw: String(setting("customGlyphs", ""))
   readonly property var customGlyphsList: Model.parseCustomGlyphs(root.customGlyphsRaw)
 
@@ -194,6 +204,15 @@ BarWidget {
         readonly property bool occupied: workspace !== null && workspace.toplevels.values.length > 0
         readonly property bool focused: Hyprland.focusedWorkspace !== null && Hyprland.focusedWorkspace.id === modelData
         readonly property real cellMin: Math.min(width, height)
+        // Decode hides the real glyph while its scramble overlay plays.
+        // A plain (unbound) property multiplied into glyphText.opacity's
+        // binding, so animating it never severs that binding.
+        property real decodeMask: 0
+
+        // The focused cell stacks above its neighbors, so Ember burst's
+        // sparks (and Hypr-pop's ring) spilling sideways draw over the
+        // adjacent cells instead of under their decorations.
+        z: focused ? 1 : 0
 
         Layout.preferredWidth: root.vertical ? root.barSize : Style.space(20)
         Layout.preferredHeight: root.barSize
@@ -299,7 +318,7 @@ BarWidget {
           color: (root.decoration === "bold" && cell.focused)
             ? root.indicatorColorValue
             : root.fg
-          opacity: cell.occupied || cell.focused ? 1 : 0.5
+          opacity: (cell.occupied || cell.focused ? 1 : 0.5) * (1 - cell.decodeMask)
 
           SequentialAnimation {
             id: popAnim
@@ -369,7 +388,11 @@ BarWidget {
           Connections {
             target: cell
             function onFocusedChanged() {
-              if (!cell.focused) return
+              if (!cell.focused) {
+                // Never leave a cell mid-scramble with its real glyph hidden.
+                decodeLayer.cancel()
+                return
+              }
               if (root.animation === "pop") popAnim.restart()
               else if (root.animation === "hyprPop") { hyprPopAnim.restart(); hyprPopRingAnim.restart() }
               else if (root.animation === "glitch") {
@@ -377,6 +400,8 @@ BarWidget {
                 glitchFringeCyanAnim.restart(); glitchFringeMagentaAnim.restart()
               }
               else if (root.animation === "neon") neonAnim.restart()
+              else if (root.animation === "decode") decodeLayer.start()
+              else if (root.animation === "emberBurst") emberLayer.burst()
             }
           }
         }
@@ -531,6 +556,314 @@ BarWidget {
           }
         }
 
+        // Decode: a cipher cracking. The real glyph is hidden (via
+        // cell.decodeMask) while an overlay scrambles through random glyphs
+        // from the active glyph set (Glyphs.decodePool), tinted through the
+        // theme's cool palette (root.decodePalette), with each tick a little
+        // slower than the last (Model.DECODE_TICKS_MS) like a slot-machine
+        // reel. A scanline sweeps the cell while it "reads"; then the
+        // overlay locks onto the real glyph with a bright flash and an
+        // overshoot, and cross-fades back into the real glyph.
+        Item {
+          id: decodeLayer
+          anchors.fill: parent
+          visible: root.animation === "decode"
+
+          property int tick: 0
+          property string lastGlyph: ""
+
+          function start() {
+            decodeLockAnim.stop()
+            tick = 0
+            cell.decodeMask = 1
+            decodeOverlay.opacity = 1
+            scramble()
+            decodeScanAnim.restart()
+            decodeTimer.interval = Model.DECODE_TICKS_MS[0]
+            decodeTimer.restart()
+          }
+
+          function scramble() {
+            var pool = root.decodeGlyphPool
+            var real = glyphText.text
+            var g = real
+            // Avoid showing the answer (or repeating the last frame) early.
+            for (var tries = 0; tries < 8 && (g === real || g === lastGlyph); tries++)
+              g = pool[Math.floor(Math.random() * pool.length)]
+            lastGlyph = g
+            decodeOverlay.text = g
+            var pal = root.decodePalette
+            decodeOverlay.color = pal[tick % pal.length]
+            decodeOverlay.scale = 0.9 + Math.random() * 0.2
+            decodeShift.x = Math.round((Math.random() - 0.5) * 2)
+            decodeShift.y = Math.round((Math.random() - 0.5) * 4)
+          }
+
+          function lockIn() {
+            decodeOverlay.text = glyphText.text
+            decodeShift.x = 0
+            decodeShift.y = 0
+            decodeLockAnim.restart()
+          }
+
+          function cancel() {
+            decodeTimer.stop()
+            decodeScanAnim.stop()
+            decodeLockAnim.stop()
+            cell.decodeMask = 0
+            decodeOverlay.opacity = 0
+            decodeScan.opacity = 0
+          }
+
+          Timer {
+            id: decodeTimer
+            onTriggered: {
+              decodeLayer.tick++
+              var ticks = Model.DECODE_TICKS_MS
+              if (decodeLayer.tick >= ticks.length) {
+                decodeLayer.lockIn()
+                return
+              }
+              decodeLayer.scramble()
+              interval = ticks[decodeLayer.tick]
+              restart()
+            }
+          }
+
+          // CRT-style read head: a crisp 1px line with a soft fading tail
+          // above it, sweeping top to bottom across the whole scramble.
+          Item {
+            id: decodeScan
+            x: 2
+            width: parent.width - 4
+            height: 6
+            opacity: 0
+
+            Rectangle {
+              anchors.fill: parent
+              gradient: Gradient {
+                GradientStop { position: 0.0; color: "transparent" }
+                GradientStop { position: 1.0; color: Util.alpha(root.indicatorColorValue, 0.35) }
+              }
+            }
+            Rectangle {
+              anchors.bottom: parent.bottom
+              width: parent.width
+              height: 1
+              color: Qt.lighter(root.indicatorColorValue, 1.4)
+            }
+
+            SequentialAnimation {
+              id: decodeScanAnim
+              PropertyAction { target: decodeScan; property: "opacity"; value: 0.8 }
+              NumberAnimation {
+                target: decodeScan; property: "y"
+                from: -decodeScan.height; to: decodeLayer.height - decodeScan.height
+                duration: 390; easing.type: Easing.InOutSine
+              }
+            }
+          }
+
+          Text {
+            id: decodeOverlay
+            anchors.centerIn: parent
+            font: glyphText.font
+            opacity: 0
+            transform: Translate { id: decodeShift }
+          }
+
+          SequentialAnimation {
+            id: decodeLockAnim
+            ParallelAnimation {
+              ColorAnimation { target: decodeOverlay; property: "color"; to: Qt.lighter(root.indicatorColorValue, 1.7); duration: 60 }
+              NumberAnimation { target: decodeOverlay; property: "scale"; to: 1.3; duration: 60; easing.type: Easing.OutQuad }
+              NumberAnimation { target: decodeScan; property: "opacity"; to: 0; duration: 120 }
+            }
+            ParallelAnimation {
+              ColorAnimation { target: decodeOverlay; property: "color"; to: root.indicatorColorValue; duration: 200 }
+              NumberAnimation { target: decodeOverlay; property: "scale"; to: 1.0; duration: 200; easing.type: Easing.OutBack }
+            }
+            ParallelAnimation {
+              NumberAnimation { target: decodeOverlay; property: "opacity"; to: 0; duration: 160 }
+              NumberAnimation { target: cell; property: "decodeMask"; to: 0; duration: 160 }
+            }
+          }
+        }
+
+        // Ember burst: striking a match. A white-hot ignition flash at the
+        // cell center, then a shower of embers in the theme's warm palette
+        // (root.emberPalette) that fly out, rise on the heat, cool from
+        // white-hot through their theme color to dark, and burn out - while
+        // the glyph itself flares hot and settles. Particle vectors come
+        // from Model.emberVectors, re-rolled on every switch so no two
+        // bursts look the same. Zero-size origin item at the cell center,
+        // so particle x/y are plain offsets from the center.
+        Item {
+          id: emberLayer
+          anchors.centerIn: parent
+          width: 0
+          height: 0
+          visible: root.animation === "emberBurst"
+
+          function burst() {
+            var vecs = Model.emberVectors(emberRepeater.count, cell.cellMin * 0.8)
+            var pal = root.emberPalette
+            // A horizontal bar is short and wide: throw the sparks wider
+            // than tall so they don't just vanish off the top of the bar.
+            var stretch = root.vertical ? 1 : 1.6
+            for (var i = 0; i < vecs.length; i++) {
+              var e = emberRepeater.itemAt(i)
+              if (e) e.burst(vecs[i], stretch, pal[vecs[i].colorIndex % pal.length])
+            }
+            emberCoreAnim.restart()
+            emberHeatAnim.restart()
+          }
+
+          Rectangle {
+            id: emberCore
+            width: cell.cellMin * 0.7
+            height: width
+            radius: width / 2
+            x: -width / 2
+            y: -height / 2
+            color: Qt.lighter(root.emberPalette[0], 1.9)
+            opacity: 0
+            scale: 0.2
+
+            ParallelAnimation {
+              id: emberCoreAnim
+              NumberAnimation { target: emberCore; property: "scale"; from: 0.2; to: 1.3; duration: 220; easing.type: Easing.OutCubic }
+              SequentialAnimation {
+                NumberAnimation { target: emberCore; property: "opacity"; from: 0; to: 0.85; duration: 30 }
+                NumberAnimation { target: emberCore; property: "opacity"; to: 0; duration: 190; easing.type: Easing.OutQuad }
+              }
+            }
+          }
+
+          Repeater {
+            id: emberRepeater
+            model: 12
+
+            // One ember: a hot core with a faint halo of its own color.
+            Item {
+              id: ember
+              property real size: 3
+              property color baseColor: root.themeAccentColor
+              property color hot: baseColor
+              property real px: 0
+              property real py: 0
+              property real tx: 0
+              property real ty: 0
+              property real rise: 0
+              property int delay: 0
+
+              x: px
+              y: py
+              opacity: 0
+
+              function burst(v, stretch, c) {
+                emberAnim.stop()
+                size = v.size
+                baseColor = c
+                hot = Qt.lighter(c, 1.8)
+                px = 0
+                py = 0
+                tx = v.dx * stretch
+                ty = v.dy
+                rise = v.rise
+                delay = v.delay
+                scale = 1
+                opacity = 0
+                emberAnim.restart()
+              }
+
+              Rectangle { // halo
+                width: ember.size * 2.6
+                height: width
+                radius: width / 2
+                x: -width / 2
+                y: -height / 2
+                color: ember.hot
+                opacity: 0.28
+              }
+              Rectangle { // core
+                width: ember.size
+                height: width
+                radius: width / 2
+                x: -width / 2
+                y: -height / 2
+                color: ember.hot
+              }
+
+              SequentialAnimation {
+                id: emberAnim
+                PauseAnimation { duration: ember.delay }
+                PropertyAction { target: ember; property: "opacity"; value: 1 }
+                ParallelAnimation {
+                  // Flight: burst outward fast, then float up on the heat
+                  // while drifting a touch further out.
+                  SequentialAnimation {
+                    ParallelAnimation {
+                      NumberAnimation { target: ember; property: "px"; to: ember.tx; duration: 260; easing.type: Easing.OutCubic }
+                      NumberAnimation { target: ember; property: "py"; to: ember.ty; duration: 260; easing.type: Easing.OutCubic }
+                    }
+                    ParallelAnimation {
+                      NumberAnimation { target: ember; property: "px"; to: ember.tx * 1.15; duration: 380; easing.type: Easing.OutQuad }
+                      NumberAnimation { target: ember; property: "py"; to: ember.ty - ember.rise; duration: 380; easing.type: Easing.InQuad }
+                    }
+                  }
+                  // Cooling: white-hot -> theme color -> dark.
+                  SequentialAnimation {
+                    ColorAnimation { target: ember; property: "hot"; to: ember.baseColor; duration: 180 }
+                    ColorAnimation { target: ember; property: "hot"; to: Qt.darker(ember.baseColor, 1.6); duration: 460 }
+                  }
+                  // Burn out, with a last flicker before it dies.
+                  SequentialAnimation {
+                    PauseAnimation { duration: 240 }
+                    NumberAnimation { target: ember; property: "opacity"; to: 0.55; duration: 60 }
+                    NumberAnimation { target: ember; property: "opacity"; to: 0.9; duration: 50 }
+                    ParallelAnimation {
+                      NumberAnimation { target: ember; property: "opacity"; to: 0; duration: 290; easing.type: Easing.InQuad }
+                      NumberAnimation { target: ember; property: "scale"; to: 0.2; duration: 290 }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Ember burst's glyph flare: same binding-safe overlay technique as
+        // neonOverlay - the glyph flashes white-hot in the first ember color,
+        // kicks up in scale with a slight upward lift, then cools and fades
+        // back into the real glyph.
+        Text {
+          id: emberHeat
+          anchors.centerIn: parent
+          text: glyphText.text
+          font: glyphText.font
+          color: root.emberPalette[0]
+          opacity: 0
+          visible: root.animation === "emberBurst"
+          transform: Translate { id: emberLift }
+
+          SequentialAnimation {
+            id: emberHeatAnim
+            PropertyAction { target: emberHeat; property: "color"; value: Qt.lighter(root.emberPalette[0], 1.9) }
+            ParallelAnimation {
+              NumberAnimation { target: emberHeat; property: "opacity"; to: 1; duration: 60 }
+              NumberAnimation { target: emberHeat; property: "scale"; to: 1.2; duration: 90; easing.type: Easing.OutQuad }
+              NumberAnimation { target: emberLift; property: "y"; to: -1.5; duration: 90 }
+            }
+            ParallelAnimation {
+              ColorAnimation { target: emberHeat; property: "color"; to: root.emberPalette[0]; duration: 240 }
+              NumberAnimation { target: emberHeat; property: "scale"; to: 1.0; duration: 280; easing.type: Easing.OutBack }
+              NumberAnimation { target: emberLift; property: "y"; to: 0; duration: 280 }
+            }
+            NumberAnimation { target: emberHeat; property: "opacity"; to: 0; duration: 220 }
+          }
+        }
+
         MouseArea {
           anchors.fill: parent
           acceptedButtons: Qt.LeftButton
@@ -582,14 +915,24 @@ BarWidget {
 
       Separator {}
 
-      ButtonGroup {
-        width: parent.width
-        options: root.sectionTabs
-        value: root.activeSection
-        foreground: root.fg
-        accent: Color.accent
-        fontFamily: root.fontFamily
-        onChanged: function (v) { root.activeSection = v }
+      // Local tab row instead of the stock ButtonGroup: the stock Button
+      // paints a selected chip's text in the theme's selected-color, which
+      // some themes also use as a solid selected fill (selected-fill-alpha
+      // = 1.0) - leaving the active tab's label invisible. SectionTab keeps
+      // the theme's fill/border but picks a text color that contrasts.
+      Row {
+        spacing: Style.spacing.md
+
+        Repeater {
+          model: root.sectionTabs
+
+          SectionTab {
+            required property var modelData
+            text: modelData.label
+            selected: root.activeSection === modelData.value
+            onClicked: root.activeSection = modelData.value
+          }
+        }
       }
 
       Column {
@@ -656,6 +999,53 @@ BarWidget {
   // Settings-popup section divider.
   component Separator: PanelSeparator {
     foreground: root.fg
+  }
+
+  // Settings-popup tab chip. Same theme state tokens as the stock Button
+  // (Style.*FillFor / *BorderFor), but the label color is whichever of the
+  // foreground or the popup background actually reads on the chip's fill
+  // (see Model.readableOn) - never the selected-color itself.
+  component SectionTab: Rectangle {
+    id: tab
+
+    property string text: ""
+    property bool selected: false
+    signal clicked()
+
+    readonly property color fill: tabMouse.pressed ? Style.pressedFillFor(root.fg, Color.accent)
+      : tabMouse.containsMouse ? Style.hoverFillFor(root.fg, Color.accent)
+      : selected ? Style.selectedFillFor(root.fg, Color.accent)
+      : "transparent"
+
+    implicitWidth: tabLabel.implicitWidth + Style.space(8) * 2
+    implicitHeight: tabLabel.implicitHeight + Style.space(4) * 2
+    radius: Style.cornerRadius
+    color: fill
+    border.width: 1
+    border.color: selected ? Style.selectedBorderFor(root.fg, Color.accent)
+      : Style.normalBorderFor(root.fg, Color.accent)
+
+    Behavior on color { ColorAnimation { duration: 120 } }
+
+    Text {
+      id: tabLabel
+      anchors.centerIn: parent
+      text: tab.text
+      textFormat: Text.PlainText
+      font.family: root.fontFamily
+      font.pixelSize: Style.font.body
+      font.bold: tab.selected
+      color: Model.readableOn(tab.fill, Color.background, root.fg, Color.background) === "primary"
+        ? root.fg : Color.background
+    }
+
+    MouseArea {
+      id: tabMouse
+      anchors.fill: parent
+      hoverEnabled: true
+      cursorShape: Qt.PointingHandCursor
+      onClicked: tab.clicked()
+    }
   }
 
   // Settings-popup section header ("Indicator", "Glyphs", ...).

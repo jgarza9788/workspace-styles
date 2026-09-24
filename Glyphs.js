@@ -86,13 +86,37 @@ function glyphFor(glyphSet, n, customGlyphsList) {
   }
 }
 
+// Fallback scramble alphabet for the Decode animation when a glyph set is
+// too uniform to scramble through on its own (dots is one glyph for every
+// workspace; a custom set may be mostly blank). Quadrant/shade blocks plus
+// digits - reads as "cipher" in any font, no Nerd Font needed.
+var DECODE_FALLBACK = [
+  "▖", "▗", "▘", "▝", "▚", "▞", "▙", "▟", "█", "░", "▒", "▓",
+  "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"
+]
+
+// The glyphs the Decode animation scrambles through before landing on the
+// real one: the active set's own 10 glyphs (so a roman scramble flickers
+// through roman numerals, dice through die faces...), de-duplicated, or
+// DECODE_FALLBACK if that leaves fewer than 3 distinct glyphs.
+function decodePool(glyphSet, customGlyphsList) {
+  var pool = []
+  for (var n = 1; n <= 10; n++) {
+    var g = glyphFor(glyphSet, n, customGlyphsList)
+    if (g && pool.indexOf(g) === -1) pool.push(g)
+  }
+  return pool.length >= 3 ? pool : DECODE_FALLBACK.slice()
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     ROMAN: ROMAN, KANJI: KANJI,
     DICE_NERD: DICE_NERD, DICE_PIPS: DICE_PIPS,
+    DECODE_FALLBACK: DECODE_FALLBACK,
     clampSlot: clampSlot, numberFor: numberFor,
     romanFor: romanFor, kanjiFor: kanjiFor,
     dicePipsFor: dicePipsFor, diceNerdFor: diceNerdFor,
-    nerdGlyphFor: nerdGlyphFor, glyphFor: glyphFor
+    nerdGlyphFor: nerdGlyphFor, glyphFor: glyphFor,
+    decodePool: decodePool
   }
 }

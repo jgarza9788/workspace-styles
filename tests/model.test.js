@@ -42,7 +42,8 @@ ok("pop/hyprPop are no longer decorations - they moved to ANIMATIONS",
   M.isDecoration("pop") === false && M.isDecoration("hyprPop") === false);
 
 // ANIMATION_ORDER / ANIMATIONS
-ok("ANIMATION_ORDER has 5 entries", M.ANIMATION_ORDER.length === 5);
+ok("ANIMATION_ORDER has 7 entries", M.ANIMATION_ORDER.length === 7);
+ok("isAnimation true for decode and emberBurst", M.isAnimation("decode") && M.isAnimation("emberBurst"));
 ok("every ANIMATION_ORDER id resolves to an animation with label+description",
   M.ANIMATION_ORDER.every(function (id) {
     var a = M.ANIMATIONS[id];
@@ -229,6 +230,62 @@ ok("parseThemeColors handles empty input", Object.keys(M.parseThemeColors("", ["
 ok("parseThemeColors handles undefined input", Object.keys(M.parseThemeColors(undefined, ["accent"])).length === 0);
 ok("parseThemeColors ignores malformed color lines",
   M.parseThemeColors('accent = "not-a-color"\naccent = "#333333"', ["accent"]).accent === "#333333");
+
+// DECODE_TICKS_MS: slot-machine deceleration
+ok("DECODE_TICKS_MS is non-empty", M.DECODE_TICKS_MS.length > 0);
+ok("DECODE_TICKS_MS never speeds up",
+  M.DECODE_TICKS_MS.every(function (t, i, a) { return i === 0 || t >= a[i - 1]; }));
+
+// THEME_COLOR_KEYS covers everything the animations draw from
+ok("THEME_COLOR_KEYS includes accent/selection/muted and every palette key",
+  ["accent", "selection", "muted"].concat(M.EMBER_PALETTE_KEYS, M.DECODE_PALETTE_KEYS)
+    .every(function (k) { return M.THEME_COLOR_KEYS.indexOf(k) !== -1; }));
+ok("THEME_COLOR_KEYS has no duplicates",
+  M.THEME_COLOR_KEYS.length === Array.from(new Set(M.THEME_COLOR_KEYS)).length);
+
+// themePalette
+ok("themePalette returns found keys in key order",
+  M.themePalette({ red: "#ff0000", accent: "#00ff00" }, ["accent", "orange", "red"], "#fff").join(",") === "#00ff00,#ff0000");
+ok("themePalette de-duplicates repeated hex values case-insensitively",
+  M.themePalette({ a: "#ABCDEF", b: "#abcdef", c: "#123456" }, ["a", "b", "c"], "#fff").join(",") === "#ABCDEF,#123456");
+ok("themePalette falls back when nothing is found",
+  M.themePalette({}, ["orange"], "#fff").join(",") === "#fff");
+ok("themePalette tolerates undefined themeColors",
+  M.themePalette(undefined, ["orange"], "#fff").join(",") === "#fff");
+
+// emberVectors (seeded rand for determinism)
+function seeded(seed) { return function () { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; }; }
+(function () {
+  const R = 20;
+  const v = M.emberVectors(12, R, seeded(42));
+  ok("emberVectors returns count vectors", v.length === 12);
+  ok("emberVectors delays are within 0..60ms", v.every(function (e) { return e.delay >= 0 && e.delay <= 60; }));
+  ok("emberVectors sizes are within 2..4px", v.every(function (e) { return e.size >= 2 && e.size <= 4; }));
+  ok("emberVectors always rise (embers float up)", v.every(function (e) { return e.rise > 0; }));
+  ok("emberVectors are biased upward on average",
+    v.reduce(function (s, e) { return s + e.dy; }, 0) / v.length < 0);
+  ok("emberVectors distances stay within 1.3x radius",
+    v.every(function (e) { return Math.hypot(e.dx, e.dy + R * 0.25) <= R * 1.3 + 1e-9; }));
+  ok("emberVectors spread around the circle (both left and right)",
+    v.some(function (e) { return e.dx < 0; }) && v.some(function (e) { return e.dx > 0; }));
+  ok("emberVectors colorIndex is 0..count-1", v.every(function (e, i) { return e.colorIndex === i; }));
+  ok("emberVectors defaults to Math.random", M.emberVectors(3, R).length === 3);
+})();
+
+// readableOn: the active-tab text-contrast fix
+function hex(h, a) {
+  return { r: parseInt(h.slice(1, 3), 16) / 255, g: parseInt(h.slice(3, 5), 16) / 255,
+           b: parseInt(h.slice(5, 7), 16) / 255, a: a === undefined ? 1 : a };
+}
+ok("contrastRatio of black on white is 21", Math.abs(M.contrastRatio(hex("#000000"), hex("#ffffff")) - 21) < 1e-9);
+ok("readableOn picks light foreground on a solid dark selected fill (the reported theme)",
+  M.readableOn(hex("#2d470e"), hex("#0f0f0f"), hex("#d7d7d7"), hex("#0f0f0f")) === "primary");
+ok("readableOn picks the dark alt on a solid light fill",
+  M.readableOn(hex("#f0f0f0"), hex("#0f0f0f"), hex("#d7d7d7"), hex("#0f0f0f")) === "alt");
+ok("readableOn composites a translucent fill over the surface behind it",
+  M.readableOn(hex("#ffffff", 0.05), hex("#000000"), hex("#ffffff"), hex("#000000")) === "primary");
+ok("readableOn treats a missing alpha as opaque",
+  M.readableOn({ r: 1, g: 1, b: 1 }, hex("#000000"), hex("#ffffff"), hex("#000000")) === "alt");
 
 console.log(failed === 0 ? "\nAll passed." : "\n" + failed + " failed.");
 process.exit(failed === 0 ? 0 : 1);

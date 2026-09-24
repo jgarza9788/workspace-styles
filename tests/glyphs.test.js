@@ -96,5 +96,18 @@ ok("glyphFor nerdIcons dispatches to nerdGlyphFor",
 ok("glyphFor dice dispatches to diceNerdFor for every value 1-10",
   [1, 3, 6, 7, 9, 10].every(function (n) { return G.glyphFor("dice", n) === G.diceNerdFor(n); }));
 
+// decodePool: what Decode scrambles through
+["numbers", "roman", "kanji", "dice", "dots", "nerdIcons", "bogus"].forEach(function (set) {
+  const pool = G.decodePool(set, []);
+  ok("decodePool(" + set + ") has at least 3 distinct glyphs",
+    pool.length >= 3 && new Set(pool).size === pool.length);
+});
+ok("decodePool(roman) scrambles through the roman numerals themselves",
+  G.decodePool("roman").every(function (g) { return Object.values(G.ROMAN).indexOf(g) !== -1; }));
+ok("decodePool(dots) falls back to the cipher alphabet (one glyph can't scramble)",
+  G.decodePool("dots").join("") === G.DECODE_FALLBACK.join(""));
+ok("decodePool returns a copy of the fallback, not the shared array",
+  G.decodePool("dots") !== G.DECODE_FALLBACK);
+
 console.log(failed === 0 ? "\nAll passed." : "\n" + failed + " failed.");
 process.exit(failed === 0 ? 0 : 1);

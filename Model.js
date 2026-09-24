@@ -49,21 +49,82 @@ var DEFAULT_DECORATION = "pill"
 // - Shake: a quick decaying horizontal jitter/rattle (no color change).
 // - Pulse: a soft repeating breathe/heartbeat scale pulse (2-3 beats),
 //   calmer than Pop's single bounce.
-// - Ember burst: a literal "fire" treatment - small flame-colored
-//   particles bursting outward and fading (Hypr-pop's shockwave-ring
-//   idea, but embers), distinct from Neon's in-place accent-color flicker
-//   (Neon was originally "Flame" with a fixed red/orange/yellow palette,
-//   renamed once it became an accent-color brightness flicker instead -
-//   see resolveAnimationSetting's "flame" alias below).
-var ANIMATION_ORDER = ["none", "pop", "hyprPop", "glitch", "neon"]
+// (Ember burst, from this same list, is now a real animation - below.)
+var ANIMATION_ORDER = ["none", "pop", "hyprPop", "glitch", "neon", "decode", "emberBurst"]
 var ANIMATIONS = {
-  none:    { label: "None",     description: "No animation on switch - the indicator just appears." },
-  pop:     { label: "Pop",      description: "The active glyph scales up briefly on every switch." },
-  hyprPop: { label: "Hypr-pop", description: "A much bigger, springier multi-stage bounce + rotation wobble, plus its own expanding shockwave ring - deliberately over the top." },
-  glitch:  { label: "Glitch",   description: "A bigger digital-glitch burst - rapid position jitter with a color-tint flash and a cyan/magenta chromatic-aberration fringe." },
-  neon:    { label: "Neon",     description: "The glyph flickers through brightness variations of your theme's accent color, with a lick-of-flame scale wobble." }
+  none:       { label: "None",        description: "No animation on switch - the indicator just appears." },
+  pop:        { label: "Pop",         description: "The active glyph scales up briefly on every switch." },
+  hyprPop:    { label: "Hypr-pop",    description: "A much bigger, springier multi-stage bounce + rotation wobble, plus its own expanding shockwave ring - deliberately over the top." },
+  glitch:     { label: "Glitch",      description: "A bigger digital-glitch burst - rapid position jitter with a color-tint flash and a cyan/magenta chromatic-aberration fringe." },
+  neon:       { label: "Neon",        description: "The glyph flickers through brightness variations of your theme's accent color, with a lick-of-flame scale wobble." },
+  decode:     { label: "Decode",      description: "A cipher cracking - the glyph scrambles through its own glyph set in your theme's colors, slot-machine slowing, under a scanline sweep, then locks in with a flash." },
+  emberBurst: { label: "Ember burst", description: "Striking a match - a white-hot ignition flash, then a shower of embers in your theme's warm colors that fly out, rise, cool and burn out." }
 }
 var DEFAULT_ANIMATION = "none"
+
+// Decode's scramble cadence: one glyph swap per entry, each gap (ms) a bit
+// longer than the last so the scramble decelerates like a slot-machine
+// reel before locking in on the real glyph.
+var DECODE_TICKS_MS = [28, 28, 32, 36, 44, 56, 72, 95]
+
+// Theme colors.toml keys each color-hungry animation draws from, in
+// priority order: warm fire tones for Ember burst, terminal-ish cool tones
+// for Decode. Both end up anchored on the theme's own palette, never a
+// fixed hex - a monochrome theme just yields a monochrome burst.
+var EMBER_PALETTE_KEYS = ["accent", "orange", "red", "yellow", "bright_yellow", "bright_red"]
+var DECODE_PALETTE_KEYS = ["cyan", "magenta", "blue", "green", "bright_cyan", "bright_magenta", "accent"]
+
+// Every colors.toml key BarWidget.qml needs parsed.
+var THEME_COLOR_KEYS = (function () {
+  var keys = ["accent", "selection", "muted"]
+  var extra = EMBER_PALETTE_KEYS.concat(DECODE_PALETTE_KEYS)
+  for (var i = 0; i < extra.length; i++) if (keys.indexOf(extra[i]) === -1) keys.push(extra[i])
+  return keys
+})()
+
+// The hex values found in `themeColors` (parseThemeColors' output) for
+// `keys`, in order, de-duplicated case-insensitively (many themes reuse one
+// hex across several keys). Falls back to [fallbackHex] if none were found,
+// so an animation always has at least one color to paint with.
+function themePalette(themeColors, keys, fallbackHex) {
+  var colors = themeColors || {}
+  var out = []
+  var seen = {}
+  for (var i = 0; i < keys.length; i++) {
+    var hex = colors[keys[i]]
+    if (!hex) continue
+    var norm = String(hex).toLowerCase()
+    if (seen[norm]) continue
+    seen[norm] = true
+    out.push(hex)
+  }
+  return out.length > 0 ? out : [fallbackHex]
+}
+
+// Ember burst's particle vectors, re-rolled on every switch so no two
+// bursts look alike. `rand` is injectable (defaults to Math.random) so the
+// shape of the output is testable. Angles are spread evenly around the
+// circle with jitter; distance is 0.6-1.3x `radius`; every ember gets an
+// extra upward `rise` (embers float up on the heat) and a staggered launch
+// `delay`, and `dy` is biased upward too. colorIndex is left unbounded
+// (0..count-1) - the caller wraps it modulo its palette length.
+function emberVectors(count, radius, rand) {
+  var r = rand || Math.random
+  var out = []
+  for (var i = 0; i < count; i++) {
+    var angle = (i / count) * Math.PI * 2 + (r() - 0.5) * (Math.PI / count)
+    var dist = radius * (0.6 + r() * 0.7)
+    out.push({
+      dx: Math.cos(angle) * dist,
+      dy: Math.sin(angle) * dist * 0.75 - radius * 0.25,
+      rise: radius * (0.35 + r() * 0.45),
+      size: 2 + r() * 2,
+      delay: Math.round(r() * 60),
+      colorIndex: i
+    })
+  }
+  return out
+}
 
 var GLYPH_SET_ORDER = [
   "numbers", "roman", "kanji", "dice", "dots", "nerdIcons"
@@ -190,6 +251,32 @@ function parseThemeColors(raw, keys) {
   return out
 }
 
+// Picks the more readable of two text colors on top of a (possibly
+// translucent) fill. Some themes set the shell's selected-color to a
+// literal hex with selected-fill-alpha = 1.0, and the stock Button then
+// paints the selected chip's text in that same color - invisible text on a
+// same-color fill. This composites `fill` over `under` (the surface behind
+// it) and returns whichever of `primary`/`alt` has the larger relative-
+// luminance gap from the result. Colors are {r, g, b, a} in 0..1 - a QML
+// color already has these properties. Returns "primary" or "alt".
+function relativeLuminance(c) {
+  function lin(v) { return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4) }
+  return 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b)
+}
+function contrastRatio(a, b) {
+  var la = relativeLuminance(a), lb = relativeLuminance(b)
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05)
+}
+function readableOn(fill, under, primary, alt) {
+  var a = fill.a === undefined ? 1 : fill.a
+  var composite = {
+    r: fill.r * a + under.r * (1 - a),
+    g: fill.g * a + under.g * (1 - a),
+    b: fill.b * a + under.b * (1 - a)
+  }
+  return contrastRatio(primary, composite) >= contrastRatio(alt, composite) ? "primary" : "alt"
+}
+
 // customGlyphs setting is a single comma-separated string (the manifest
 // schema has no array/object type). Index i (0-based) => workspace i+1.
 function parseCustomGlyphs(raw) {
@@ -208,6 +295,12 @@ if (typeof module !== "undefined") {
     ANIMATION_ORDER: ANIMATION_ORDER,
     ANIMATIONS: ANIMATIONS,
     DEFAULT_ANIMATION: DEFAULT_ANIMATION,
+    DECODE_TICKS_MS: DECODE_TICKS_MS,
+    EMBER_PALETTE_KEYS: EMBER_PALETTE_KEYS,
+    DECODE_PALETTE_KEYS: DECODE_PALETTE_KEYS,
+    THEME_COLOR_KEYS: THEME_COLOR_KEYS,
+    themePalette: themePalette,
+    emberVectors: emberVectors,
     GLYPH_SET_ORDER: GLYPH_SET_ORDER,
     GLYPH_SETS: GLYPH_SETS,
     DEFAULT_GLYPH_SET: DEFAULT_GLYPH_SET,
@@ -228,6 +321,9 @@ if (typeof module !== "undefined") {
     resolveAnimationSetting: resolveAnimationSetting,
     resolveGlyphSetSetting: resolveGlyphSetSetting,
     parseThemeColors: parseThemeColors,
+    relativeLuminance: relativeLuminance,
+    contrastRatio: contrastRatio,
+    readableOn: readableOn,
     parseCustomGlyphs: parseCustomGlyphs,
     customGlyphsToString: customGlyphsToString
   }
