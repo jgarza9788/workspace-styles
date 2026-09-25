@@ -31,24 +31,12 @@ BarWidget {
     return Math.max(2, Math.min(10, Math.round(isFinite(raw) ? raw : 9)))
   }
 
-  // A widget saved under the old combined "style" preset (before decoration
-  // and glyphSet were split into independent settings) has no `decoration`/
-  // `glyphSet` key yet - Model.resolve*Setting falls back to what that
-  // preset used to mean (re-validated, since some of those old decorations
-  // were later dropped) instead of snapping to the plain defaults.
-  readonly property string legacyStyleId: String(setting("style", ""))
-
-  readonly property string decoration: Model.resolveDecorationSetting(
-    String(setting("decoration", "")), root.legacyStyleId)
-  // Two "legacy" cases recovered as the animation instead: a widget saved
-  // under this plugin's own prior format (before animation was split out -
-  // its `decoration` might still literally be "pop"/"hyprPop"), or the
-  // older combined "style" preset, where "kinetic" used "pop" as its
-  // (now-removed) decoration.
-  readonly property string animation: Model.resolveAnimationSetting(
-    String(setting("animation", "")), root.legacyStyleId, String(setting("decoration", "")))
-  readonly property string glyphSet: Model.resolveGlyphSetSetting(
-    String(setting("glyphSet", "")), root.legacyStyleId)
+  readonly property string decoration: Model.resolveDecoration(
+    String(setting("decoration", "")))
+  readonly property string animation: Model.resolveAnimation(
+    String(setting("animation", "")))
+  readonly property string glyphSet: Model.resolveGlyphSet(
+    String(setting("glyphSet", "")))
   readonly property string indicatorColorId: Model.resolveIndicatorColor(
     String(setting("indicatorColor", "")))
 

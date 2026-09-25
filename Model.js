@@ -2,11 +2,11 @@
 // BarWidget.qml as `import "Model.js" as Model`, and ES5-only so the same
 // file runs under `node tests/model.test.js`.
 
-// Same math as jgarza.workspaces' workspaceIds(), parameterized by `count`
-// (clamped 2..10 - Hyprland's conventional single-key workspace range,
-// 1-9 then 0 for the 10th). Starts from [1..count], unions in any live
-// workspace id in (0, 10], sorted - so a workspace opened beyond `count`
-// (occupied or focused) still shows, matching the existing widget's
+// Workspace ids to show, parameterized by `count` (clamped 2..10 -
+// Hyprland's conventional single-key workspace range, 1-9 then 0 for the
+// 10th). Starts from [1..count], unions in any live workspace id in
+// (0, 10], sorted - so a workspace opened beyond `count` (occupied or
+// focused) still shows, matching the stock omarchy.workspaces widget's
 // live-overflow behavior.
 function workspaceIds(count, liveIds) {
   // Number(count) || 9 would treat a genuine 0 as falsy and skip clamping
@@ -44,12 +44,6 @@ var DECORATIONS = {
 }
 var DEFAULT_DECORATION = "pill"
 
-// Other animation ideas raised and deferred for a future session:
-// - Flash: a quick brightness/color flash overlay behind the glyph.
-// - Shake: a quick decaying horizontal jitter/rattle (no color change).
-// - Pulse: a soft repeating breathe/heartbeat scale pulse (2-3 beats),
-//   calmer than Pop's single bounce.
-// (Ember burst, from this same list, is now a real animation - below.)
 var ANIMATION_ORDER = ["none", "pop", "hyprPop", "glitch", "neon", "decode", "emberBurst"]
 var ANIMATIONS = {
   none:       { label: "None",        description: "No animation on switch - the indicator just appears." },
@@ -159,75 +153,6 @@ function resolveAnimation(id) { return isAnimation(id) ? id : DEFAULT_ANIMATION 
 function resolveGlyphSet(id) { return isGlyphSet(id) ? id : DEFAULT_GLYPH_SET }
 function resolveIndicatorColor(id) { return isIndicatorColor(id) ? id : DEFAULT_INDICATOR_COLOR }
 
-// Legacy combined "style" preset -> { decoration, glyphSet }, kept only so a
-// widget instance saved under the old single-preset model (schemaVersion
-// before decoration/glyphSet were split apart) still opens looking the way
-// it did, instead of snapping back to the plain defaults. Some of these
-// preset decorations (square, circle, diamond, underglow, and later pop/
-// hyprPop once animation became its own setting) were dropped from
-// DECORATIONS, and some glyph sets (letters, braille) were dropped from
-// GLYPH_SETS, so resolveDecorationSetting/resolveGlyphSetSetting below
-// re-validate them and fall back to the plain default if they're no longer
-// a real decoration/glyph set. `kinetic`'s old "pop" decoration is instead
-// recovered as an *animation* by resolveAnimationSetting, below, since that
-// preset's whole point was the bounce.
-var LEGACY_PRESETS = {
-  classic:       { decoration: "pill",      glyphSet: "numbers" },
-  framedSquare:  { decoration: "square",    glyphSet: "numbers" },
-  halo:          { decoration: "circle",    glyphSet: "numbers" },
-  underscore:    { decoration: "underline", glyphSet: "numbers" },
-  boldType:      { decoration: "bold",      glyphSet: "numbers" },
-  kinetic:       { decoration: "pop",       glyphSet: "numbers" },
-  romanCourt:    { decoration: "pill",      glyphSet: "roman" },
-  kanjiZen:      { decoration: "underline", glyphSet: "kanji" },
-  boneyardDice:  { decoration: "circle",    glyphSet: "dice" },
-  cipherBraille: { decoration: "underline", glyphSet: "braille" },
-  letterGrid:    { decoration: "square",    glyphSet: "letters" },
-  nerdSignals:   { decoration: "pill",      glyphSet: "nerdIcons" },
-  diamondMarks:  { decoration: "diamond",   glyphSet: "numbers" },
-  afterglow:     { decoration: "underglow", glyphSet: "dots" }
-}
-
-function legacyPreset(styleId) { return LEGACY_PRESETS[styleId] || null }
-
-// Single source of truth for "what decoration/glyphSet does this widget
-// instance actually use": the current setting if it's still a real one,
-// else the old combined preset's meaning if THAT is still a real one, else
-// the plain default. Used by BarWidget.qml so the fallback chain lives in
-// one tested place instead of being re-implemented inline in QML.
-function resolveDecorationSetting(rawSetting, legacyStyleId) {
-  if (isDecoration(rawSetting)) return rawSetting
-  var legacy = legacyPreset(legacyStyleId)
-  if (legacy && isDecoration(legacy.decoration)) return legacy.decoration
-  return DEFAULT_DECORATION
-}
-function resolveGlyphSetSetting(rawSetting, legacyStyleId) {
-  if (isGlyphSet(rawSetting)) return rawSetting
-  var legacy = legacyPreset(legacyStyleId)
-  if (legacy && isGlyphSet(legacy.glyphSet)) return legacy.glyphSet
-  return DEFAULT_GLYPH_SET
-}
-// Same fallback chain, but for the animation setting. Three different
-// kinds of "legacy" can be recovered here:
-// - rawSetting === "flame": this animation's own former id, renamed to
-//   "neon" once it stopped using a fixed red/orange/yellow palette and
-//   became an accent-color brightness flicker instead - checked first so
-//   an already-saved "flame" value keeps working with zero disruption.
-// - rawDecoration: a widget saved between the point animation was split out
-//   of decoration and now still has its OWN `decoration` key set to "pop"/
-//   "hyprPop" (this plugin's own prior format, not the older style-preset
-//   one).
-// - legacyStyleId: the older combined "style" preset, whose `decoration`
-//   sometimes happened to be "pop" (the `kinetic` preset) - checked last.
-function resolveAnimationSetting(rawSetting, legacyStyleId, rawDecoration) {
-  if (rawSetting === "flame") return "neon"
-  if (isAnimation(rawSetting)) return rawSetting
-  if (isAnimation(rawDecoration)) return rawDecoration
-  var legacy = legacyPreset(legacyStyleId)
-  if (legacy && isAnimation(legacy.decoration)) return legacy.decoration
-  return DEFAULT_ANIMATION
-}
-
 // Pulls flat `key = "#rrggbb"` values straight out of the active theme's
 // colors.toml (~/.local/state/omarchy/current/theme/colors.toml), for the
 // given list of keys - same tolerant line regex qs.Commons/Color.qml's own
@@ -315,11 +240,6 @@ if (typeof module !== "undefined") {
     resolveAnimation: resolveAnimation,
     resolveGlyphSet: resolveGlyphSet,
     resolveIndicatorColor: resolveIndicatorColor,
-    LEGACY_PRESETS: LEGACY_PRESETS,
-    legacyPreset: legacyPreset,
-    resolveDecorationSetting: resolveDecorationSetting,
-    resolveAnimationSetting: resolveAnimationSetting,
-    resolveGlyphSetSetting: resolveGlyphSetSetting,
     parseThemeColors: parseThemeColors,
     relativeLuminance: relativeLuminance,
     contrastRatio: contrastRatio,

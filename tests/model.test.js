@@ -56,7 +56,6 @@ ok("DEFAULT_ANIMATION is a real animation", M.isAnimation(M.DEFAULT_ANIMATION));
 ok("DEFAULT_ANIMATION is none", M.DEFAULT_ANIMATION === "none");
 ok("isAnimation true for pop and hyprPop", M.isAnimation("pop") && M.isAnimation("hyprPop"));
 ok("isAnimation true for glitch and neon", M.isAnimation("glitch") && M.isAnimation("neon"));
-ok("isAnimation false for the old \"flame\" id (renamed to neon)", M.isAnimation("flame") === false);
 ok("isAnimation false for a decoration id", M.isAnimation("pill") === false);
 ok("resolveAnimation passes through a known id", M.resolveAnimation("hyprPop") === "hyprPop");
 ok("resolveAnimation passes through glitch and neon",
@@ -116,75 +115,6 @@ ok("isIndicatorColor false for an unknown id", M.isIndicatorColor("bogus") === f
 ok("resolveIndicatorColor passes through a known id", M.resolveIndicatorColor("muted") === "muted");
 ok("resolveIndicatorColor falls back to default for an unknown id",
   M.resolveIndicatorColor("bogus") === M.DEFAULT_INDICATOR_COLOR);
-
-// legacyPreset - migration lookup for the pre-split combined "style" setting
-ok("legacyPreset resolves a known old preset id to a decoration+glyphSet pair",
-  (function () {
-    var p = M.legacyPreset("boneyardDice");
-    return !!p && p.decoration === "circle" && p.glyphSet === "dice";
-  })());
-ok("legacyPreset returns null for an unknown id", M.legacyPreset("bogus") === null);
-// Several legacy presets point at decorations that were later dropped from
-// DECORATIONS (square/circle/diamond/underglow, and pop once it became an
-// animation) - that's expected, and is exactly what resolveDecorationSetting's
-// fallback chain below covers.
-ok("some legacy presets still point at a currently-valid decoration",
-  M.isDecoration(M.LEGACY_PRESETS.classic.decoration)
-    && M.isDecoration(M.LEGACY_PRESETS.underscore.decoration));
-ok("some legacy presets point at a decoration since removed from DECORATIONS",
-  !M.isDecoration(M.LEGACY_PRESETS.boneyardDice.decoration)
-    && !M.isDecoration(M.LEGACY_PRESETS.diamondMarks.decoration)
-    && !M.isDecoration(M.LEGACY_PRESETS.afterglow.decoration)
-    && !M.isDecoration(M.LEGACY_PRESETS.kinetic.decoration));
-ok("some legacy presets still point at a currently-valid glyph set",
-  M.isGlyphSet(M.LEGACY_PRESETS.classic.glyphSet)
-    && M.isGlyphSet(M.LEGACY_PRESETS.romanCourt.glyphSet));
-ok("some legacy presets point at a glyph set since removed from GLYPH_SETS",
-  !M.isGlyphSet(M.LEGACY_PRESETS.cipherBraille.glyphSet)
-    && !M.isGlyphSet(M.LEGACY_PRESETS.letterGrid.glyphSet));
-
-// resolveDecorationSetting / resolveAnimationSetting / resolveGlyphSetSetting
-// - the single fallback chain BarWidget.qml relies on: current setting >
-// legacy meaning > plain default, re-validating at every step.
-ok("resolveDecorationSetting passes through a valid current setting",
-  M.resolveDecorationSetting("underline", "classic") === "underline");
-ok("resolveDecorationSetting falls back to the plain default for kinetic (its old \"pop\" decoration is now an animation, not a decoration)",
-  M.resolveDecorationSetting("bogus", "kinetic") === M.DEFAULT_DECORATION);
-ok("resolveDecorationSetting falls back to the plain default when the legacy preset's own decoration was removed",
-  M.resolveDecorationSetting("bogus", "boneyardDice") === M.DEFAULT_DECORATION);
-ok("resolveDecorationSetting falls back to the plain default with no legacy preset at all",
-  M.resolveDecorationSetting("bogus", "") === M.DEFAULT_DECORATION);
-
-ok("resolveAnimationSetting passes through a valid current setting",
-  M.resolveAnimationSetting("hyprPop", "kinetic") === "hyprPop");
-ok("resolveAnimationSetting maps the old \"flame\" id to \"neon\" (renamed, same effect)",
-  M.resolveAnimationSetting("flame", "") === "neon");
-ok("resolveAnimationSetting's \"flame\" alias takes priority over everything else",
-  M.resolveAnimationSetting("flame", "kinetic", "hyprPop") === "neon");
-ok("resolveAnimationSetting recovers kinetic's old \"pop\" decoration as the animation instead",
-  M.resolveAnimationSetting("bogus", "kinetic") === "pop");
-ok("resolveAnimationSetting recovers a rawDecoration of \"hyprPop\" (this plugin's own prior format, before animation was split out)",
-  M.resolveAnimationSetting("bogus", "", "hyprPop") === "hyprPop");
-ok("resolveAnimationSetting prefers a valid current animation setting over rawDecoration",
-  M.resolveAnimationSetting("pop", "", "hyprPop") === "pop");
-ok("resolveAnimationSetting prefers rawDecoration over the older style-preset legacy path",
-  M.resolveAnimationSetting("bogus", "kinetic", "hyprPop") === "hyprPop");
-ok("resolveAnimationSetting ignores a rawDecoration that isn't itself an animation id",
-  M.resolveAnimationSetting("bogus", "", "pill") === M.DEFAULT_ANIMATION);
-ok("resolveAnimationSetting falls back to the plain default with no matching legacy preset",
-  M.resolveAnimationSetting("bogus", "classic") === M.DEFAULT_ANIMATION);
-ok("resolveAnimationSetting falls back to the plain default with no legacy preset at all",
-  M.resolveAnimationSetting("bogus", "") === M.DEFAULT_ANIMATION);
-
-ok("resolveGlyphSetSetting passes through a valid current setting",
-  M.resolveGlyphSetSetting("dice", "classic") === "dice");
-ok("resolveGlyphSetSetting falls back to a legacy preset glyph set",
-  M.resolveGlyphSetSetting("bogus", "romanCourt") === "roman");
-ok("resolveGlyphSetSetting falls back to the plain default when the legacy preset's own glyph set was removed",
-  M.resolveGlyphSetSetting("bogus", "cipherBraille") === M.DEFAULT_GLYPH_SET
-    && M.resolveGlyphSetSetting("bogus", "letterGrid") === M.DEFAULT_GLYPH_SET);
-ok("resolveGlyphSetSetting falls back to the plain default with no legacy preset at all",
-  M.resolveGlyphSetSetting("bogus", "") === M.DEFAULT_GLYPH_SET);
 
 // parseCustomGlyphs / customGlyphsToString round-trip
 ok("parseCustomGlyphs empty string -> single empty slot",
