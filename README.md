@@ -27,13 +27,15 @@ Independent of Indicator - any animation combines with any indicator shape.
 | `pop` | Pop | The active glyph scales up briefly on every switch. |
 | `hyprPop` | Hypr-pop | A much bigger, springier multi-stage bounce + rotation wobble, plus its own expanding "shockwave" ring - deliberately over the top. |
 | `glitch` | Glitch | A bigger digital-glitch burst - rapid position jitter with a color-tint flash and a cyan/magenta chromatic-aberration fringe. |
-| `neon` | Neon | The glyph flickers through brightness variations (`Qt.lighter`/`Qt.darker`) of your theme's actual accent color - not a fixed red/orange/yellow palette - with a lick-of-flame scale wobble, settling back on the accent color regardless of the Indicator Color setting. (Originally named "Flame" with fixed fire colors; renamed once it became an accent-color flicker instead - an old saved `"flame"` value still works, mapped to `neon`.) |
+| `neon` | Neon | The glyph flickers through brightness variations (`Qt.lighter`/`Qt.darker`) of your theme's actual accent color - not a fixed red/orange/yellow palette - with a lick-of-flame scale wobble, settling back on the accent color regardless of the Indicator Color setting. |
+| `decode` | Decode | A cipher cracking - the real glyph is hidden while an overlay scrambles through random glyphs from the *active glyph set* (roman scrambles through roman numerals, dice through die faces; uniform sets like Dots fall back to a block/digit cipher alphabet), tinted through your theme's cool palette (`cyan`/`magenta`/`blue`/`green`/`bright_*`/`accent` from `colors.toml`). Each tick is slower than the last like a slot-machine reel, a CRT-style scanline sweeps the cell as it "reads", then it locks onto the real glyph with a bright flash and an overshoot. |
+| `emberBurst` | Ember burst | Striking a match - a white-hot ignition flash at the cell center, then 12 embers in your theme's warm palette (`accent`/`orange`/`red`/`yellow`/`bright_*` from `colors.toml`) fly out, rise on the heat, cool from white-hot through their color to dark, flicker and burn out, while the glyph itself flares hot. Particle paths are re-rolled every switch, so no two bursts look alike. |
 
 ## Glyph sets
 
 | Value | Label | Look |
 |---|---|---|
-| `numbers` | Numbers | Plain workspace numbers (10 shows as `0`, matching the sibling `jgarza.workspaces`/`omarchy.workspaces` widgets and the SUPER+0 Hyprland keybind convention). |
+| `numbers` | Numbers | Plain workspace numbers (10 shows as `0`, matching the stock `omarchy.workspaces` widget and the SUPER+0 Hyprland keybind convention). |
 | `roman` | Roman | Nerd Font roman numeral icons, I through X. |
 | `kanji` | Japanese | Japanese numerals, 一 through 十. |
 | `dice` | Dice | Nerd Font die-face icons for 1-6, boxed-numeral icons for 7-10 (real dice don't have faces above 6 pips, so those borrow Material Design Icons' boxed-numeral family instead - same ink density, verified against the font). |
@@ -88,20 +90,6 @@ in `~/.config/omarchy/shell.json`.
 | `indicatorColor` | `accent` | One of the indicator color values above. |
 | `customGlyphs` | `""` | Comma-separated glyph/emoji per slot, only used by `nerdIcons`. |
 
-A widget saved under an older version of this plugin keeps looking the way
-it did, via fallback chains re-validated against the current option sets:
-
-- Before `decoration`/`glyphSet` were split out of a single combined `style`
-  preset: falls back to what that preset used to mean.
-- A decoration later dropped (`square`, `circle`, `diamond`, `underglow`)
-  falls back to `pill`.
-- A glyph set later dropped (`letters`, `braille`) falls back to `numbers`.
-- Before `animation` existed as its own setting, `pop` was a decoration
-  (the `kinetic` preset). That's recovered as the `animation` fallback
-  instead, since decorations no longer include `pop`/`hyprPop` at all.
-- The `neon` animation's old id, `flame`, still works too (mapped straight
-  to `neon`).
-
 ### Editing `shell.json` by hand
 
 ```json
@@ -141,8 +129,7 @@ after a restart, clear the compiled-QML cache: `rm -rf
 ~/.cache/quickshell/qmlcache/*` then `omarchy restart shell` again.
 
 `Model.js` holds workspace-id math, the decoration/animation/glyph-set/
-indicator-color registries, the legacy combined-preset migration table, and
-the `colors.toml` line parser. `Glyphs.js` holds the glyph-set lookup tables
+indicator-color registries, and the `colors.toml` line parser. `Glyphs.js` holds the glyph-set lookup tables
 and resolvers (Nerd Font roman numerals, kanji, Nerd Font dice +
 boxed-numeral icons, the dots icon, custom-glyph fallback). Both are ES5 so
 they run in QML and under Node.

@@ -23,38 +23,16 @@ var DICE_NERD = {
   7: "󰎶", 8: "󰎹", 9: "󰎼", 10: "󰽽"
 }
 
-// 3x3 pip-position grid, [row, col] pairs with row/col in {0,1,2}: 7 =
-// six-pattern + center, 8 = ring of 8 minus center, 9 = full 3x3 grid (a
-// 3x3 grid can't fit a 10th pip). DICE_NERD now covers every value 1-10
-// with a real icon, so BarWidget.qml no longer draws these - kept as a
-// tested, available alternative rendering (e.g. for a future "hand-drawn
-// dice" glyph set, or if a glyph ever fails to resolve).
-var DICE_PIPS = {
-  1: [[1, 1]],
-  2: [[0, 0], [2, 2]],
-  3: [[0, 0], [1, 1], [2, 2]],
-  4: [[0, 0], [0, 2], [2, 0], [2, 2]],
-  5: [[0, 0], [0, 2], [1, 1], [2, 0], [2, 2]],
-  6: [[0, 0], [0, 2], [1, 0], [1, 2], [2, 0], [2, 2]],
-  7: [[0, 0], [0, 2], [1, 0], [1, 1], [1, 2], [2, 0], [2, 2]],
-  8: [[0, 0], [0, 1], [0, 2], [1, 0], [1, 2], [2, 0], [2, 1], [2, 2]],
-  9: [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2], [2, 0], [2, 1], [2, 2]]
-}
-
 function clampSlot(n) { return Math.max(1, Math.min(10, Math.round(Number(n) || 1))) }
 
-// Plain workspace number. Slot 10 renders as "0", matching the sibling
-// jgarza.workspaces/omarchy.workspaces widgets and the common Hyprland
-// keybind convention (SUPER+0 -> workspace 10), so the bar reads the same
-// way no matter which workspace widget is showing it.
+// Plain workspace number. Slot 10 renders as "0", matching the stock
+// omarchy.workspaces widget and the common Hyprland keybind convention
+// (SUPER+0 -> workspace 10), so the bar reads the same way no matter which
+// workspace widget is showing it.
 function numberFor(n) { var s = clampSlot(n); return s === 10 ? "0" : String(s) }
 
 function romanFor(n) { return ROMAN[clampSlot(n)] || String(n) }
 function kanjiFor(n) { return KANJI[clampSlot(n)] || String(n) }
-// DICE_PIPS has no entry for 10 (clampSlot's upper bound, since a 3x3 grid
-// can't fit a 10th pip) - falls back to the fullest layout (9) rather than
-// the sparsest (1) for any out-of-range slot.
-function dicePipsFor(n) { return DICE_PIPS[clampSlot(n)] || DICE_PIPS[9] }
 // The Nerd Font icon for the Dice glyph set, 1-10 (real die faces for 1-6,
 // boxed numerals for 7-10 - see DICE_NERD above).
 function diceNerdFor(n) { return DICE_NERD[clampSlot(n)] || "" }
@@ -86,13 +64,37 @@ function glyphFor(glyphSet, n, customGlyphsList) {
   }
 }
 
+// Fallback scramble alphabet for the Decode animation when a glyph set is
+// too uniform to scramble through on its own (dots is one glyph for every
+// workspace; a custom set may be mostly blank). Quadrant/shade blocks plus
+// digits - reads as "cipher" in any font, no Nerd Font needed.
+var DECODE_FALLBACK = [
+  "▖", "▗", "▘", "▝", "▚", "▞", "▙", "▟", "█", "░", "▒", "▓",
+  "0", "1", "2", "3", "4", "5", "6", "7", "8", "9"
+]
+
+// The glyphs the Decode animation scrambles through before landing on the
+// real one: the active set's own 10 glyphs (so a roman scramble flickers
+// through roman numerals, dice through die faces...), de-duplicated, or
+// DECODE_FALLBACK if that leaves fewer than 3 distinct glyphs.
+function decodePool(glyphSet, customGlyphsList) {
+  var pool = []
+  for (var n = 1; n <= 10; n++) {
+    var g = glyphFor(glyphSet, n, customGlyphsList)
+    if (g && pool.indexOf(g) === -1) pool.push(g)
+  }
+  return pool.length >= 3 ? pool : DECODE_FALLBACK.slice()
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
     ROMAN: ROMAN, KANJI: KANJI,
-    DICE_NERD: DICE_NERD, DICE_PIPS: DICE_PIPS,
+    DICE_NERD: DICE_NERD,
+    DECODE_FALLBACK: DECODE_FALLBACK,
     clampSlot: clampSlot, numberFor: numberFor,
     romanFor: romanFor, kanjiFor: kanjiFor,
-    dicePipsFor: dicePipsFor, diceNerdFor: diceNerdFor,
-    nerdGlyphFor: nerdGlyphFor, glyphFor: glyphFor
+    diceNerdFor: diceNerdFor,
+    nerdGlyphFor: nerdGlyphFor, glyphFor: glyphFor,
+    decodePool: decodePool
   }
 }
