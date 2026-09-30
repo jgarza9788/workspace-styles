@@ -44,7 +44,7 @@ var DECORATIONS = {
 }
 var DEFAULT_DECORATION = "pill"
 
-var ANIMATION_ORDER = ["none", "pop", "hyprPop", "glitch", "neon", "decode", "emberBurst"]
+var ANIMATION_ORDER = ["none", "pop", "hyprPop", "glitch", "neon", "decode", "emberBurst", "ripple"]
 var ANIMATIONS = {
   none:       { label: "None",        description: "No animation on switch - the indicator just appears." },
   pop:        { label: "Pop",         description: "The active glyph scales up briefly on every switch." },
@@ -52,7 +52,8 @@ var ANIMATIONS = {
   glitch:     { label: "Glitch",      description: "A bigger digital-glitch burst - rapid position jitter with a color-tint flash and a cyan/magenta chromatic-aberration fringe." },
   neon:       { label: "Neon",        description: "The glyph flickers through brightness variations of your theme's accent color, with a lick-of-flame scale wobble." },
   decode:     { label: "Decode",      description: "A cipher cracking - the glyph scrambles through its own glyph set in your theme's colors, slot-machine slowing, under a scanline sweep, then locks in with a flash." },
-  emberBurst: { label: "Ember burst", description: "Striking a match - a white-hot ignition flash, then a shower of embers in your theme's warm colors that fly out, rise, cool and burn out." }
+  emberBurst: { label: "Ember burst", description: "Striking a match - a white-hot ignition flash, then a shower of embers in your theme's warm colors that fly out, rise, cool and burn out." },
+  ripple:     { label: "Ripple",      description: "Material Design ink - a circle of ink spreads from where you clicked (or the center, for keyboard switches), bleeding out over the neighboring workspaces, then fades." }
 }
 var DEFAULT_ANIMATION = "none"
 
@@ -118,6 +119,16 @@ function emberVectors(count, radius, rand) {
     })
   }
   return out
+}
+
+// Ripple's final ink radius: the distance from the origin (ox, oy) to the
+// farthest corner of a w x h box, so the ink always covers the whole cell
+// no matter where it started; BarWidget.qml scales it up from there so
+// the ink bleeds past the cell.
+function rippleRadius(w, h, ox, oy) {
+  var dx = Math.max(ox, w - ox)
+  var dy = Math.max(oy, h - oy)
+  return Math.sqrt(dx * dx + dy * dy)
 }
 
 var GLYPH_SET_ORDER = [
@@ -226,6 +237,7 @@ if (typeof module !== "undefined") {
     THEME_COLOR_KEYS: THEME_COLOR_KEYS,
     themePalette: themePalette,
     emberVectors: emberVectors,
+    rippleRadius: rippleRadius,
     GLYPH_SET_ORDER: GLYPH_SET_ORDER,
     GLYPH_SETS: GLYPH_SETS,
     DEFAULT_GLYPH_SET: DEFAULT_GLYPH_SET,

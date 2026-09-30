@@ -42,7 +42,8 @@ ok("pop/hyprPop are no longer decorations - they moved to ANIMATIONS",
   M.isDecoration("pop") === false && M.isDecoration("hyprPop") === false);
 
 // ANIMATION_ORDER / ANIMATIONS
-ok("ANIMATION_ORDER has 7 entries", M.ANIMATION_ORDER.length === 7);
+ok("ANIMATION_ORDER has 8 entries", M.ANIMATION_ORDER.length === 8);
+ok("isAnimation true for ripple", M.isAnimation("ripple"));
 ok("isAnimation true for decode and emberBurst", M.isAnimation("decode") && M.isAnimation("emberBurst"));
 ok("every ANIMATION_ORDER id resolves to an animation with label+description",
   M.ANIMATION_ORDER.every(function (id) {
@@ -201,6 +202,12 @@ function seeded(seed) { return function () { seed = (seed * 16807) % 2147483647;
   ok("emberVectors colorIndex is 0..count-1", v.every(function (e, i) { return e.colorIndex === i; }));
   ok("emberVectors defaults to Math.random", M.emberVectors(3, R).length === 3);
 })();
+
+// rippleRadius: ink always reaches the farthest corner
+ok("rippleRadius from the center is half the diagonal", Math.abs(M.rippleRadius(30, 40, 15, 20) - 25) < 1e-9);
+ok("rippleRadius from a corner is the full diagonal", Math.abs(M.rippleRadius(30, 40, 0, 0) - 50) < 1e-9);
+ok("rippleRadius from an off-center point reaches the far corner",
+  Math.abs(M.rippleRadius(30, 40, 27, 4) - Math.hypot(27, 36)) < 1e-9);
 
 // readableOn: the active-tab text-contrast fix
 function hex(h, a) {

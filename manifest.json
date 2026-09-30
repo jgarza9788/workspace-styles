@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "author": "jgarza",
   "license": "MIT",
-  "description": "Workspace indicator with an active-workspace decoration (pill, rounded square, underline, bold, glow), a switch animation (none, pop, hypr-pop, glitch, neon, decode, ember burst), a glyph set (numbers, roman numerals, kanji, dice, dots, Nerd Font icons), and an indicator color role (accent, selection, muted) all chosen independently, so you can mix and match.",
+  "description": "Workspace indicator with an active-workspace decoration (pill, rounded square, underline, bold, glow), a switch animation (none, pop, hypr-pop, glitch, neon, decode, ember burst, ripple), a glyph set (numbers, roman numerals, kanji, dice, dots, Nerd Font icons), and an indicator color role (accent, selection, muted) all chosen independently, so you can mix and match.",
   "kinds": [
     "bar-widget"
   ],
@@ -64,7 +64,8 @@
           { "value": "glitch", "label": "Glitch", "description": "A bigger digital-glitch burst - rapid position jitter with a color-tint flash and a cyan/magenta chromatic-aberration fringe." },
           { "value": "neon", "label": "Neon", "description": "The glyph flickers through brightness variations of your theme's accent color, with a lick-of-flame scale wobble." },
           { "value": "decode", "label": "Decode", "description": "A cipher cracking - the glyph scrambles through its own glyph set in your theme's colors, slot-machine slowing, under a scanline sweep, then locks in with a flash." },
-          { "value": "emberBurst", "label": "Ember burst", "description": "Striking a match - a white-hot ignition flash, then a shower of embers in your theme's warm colors that fly out, rise, cool and burn out." }
+          { "value": "emberBurst", "label": "Ember burst", "description": "Striking a match - a white-hot ignition flash, then a shower of embers in your theme's warm colors that fly out, rise, cool and burn out." },
+          { "value": "ripple", "label": "Ripple", "description": "Material Design ink - a circle of ink spreads from where you clicked (or the center, for keyboard switches), bleeding out over the neighboring workspaces, then fades." }
         ]
       },
       {

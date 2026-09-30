@@ -11,7 +11,7 @@ import "Glyphs.js" as Glyphs
 // Workspace 1..N switcher with four independently pickable settings: an
 // active-workspace decoration (pill / rounded square / underline / bold /
 // glow), a switch animation (none / pop / hypr-pop / glitch / neon /
-// decode / ember burst), a
+// decode / ember burst / ripple), a
 // glyph set (numbers / roman / kanji / dice / dots / user Nerd Font
 // glyphs), and an indicator color role (accent / selection / muted) -
 // mixed and matched from the right-click settings popup.
@@ -196,6 +196,11 @@ BarWidget {
         // A plain (unbound) property multiplied into glyphText.opacity's
         // binding, so animating it never severs that binding.
         property real decodeMask: 0
+        // Where (and when) this cell was last clicked, so Ripple's ink can
+        // spread from the pointer like a Material button; a keyboard switch
+        // leaves this stale and the ink starts from the center instead.
+        property point clickPos: Qt.point(width / 2, height / 2)
+        property real clickTime: 0
 
         // The focused cell stacks above its neighbors, so Ember burst's
         // sparks (and Hypr-pop's ring) spilling sideways draw over the
@@ -390,6 +395,7 @@ BarWidget {
               else if (root.animation === "neon") neonAnim.restart()
               else if (root.animation === "decode") decodeLayer.start()
               else if (root.animation === "emberBurst") emberLayer.burst()
+              else if (root.animation === "ripple") rippleLayer.start()
             }
           }
         }
@@ -852,11 +858,75 @@ BarWidget {
           }
         }
 
+        // Ripple: Material Design ink, unbounded. A circle of ink spreads
+        // from the click point (or the cell center, for keyboard switches),
+        // its center drifting toward the middle as it grows, well past the
+        // cell's own corners (Model.rippleRadius x rippleLayer.spread) so it
+        // bleeds out over the neighboring glyphs - the focused cell's z: 1
+        // keeps it drawn on top of them - then fades out. Painted in the
+        // theme's literal accent (root.themeAccentColor), like Neon,
+        // regardless of the Indicator Color setting.
+        Item {
+          id: rippleLayer
+          anchors.fill: parent
+          visible: root.animation === "ripple"
+
+          // How far past the cell-covering radius the ink travels.
+          readonly property real spread: 2.2
+
+          function start() {
+            var fresh = Date.now() - cell.clickTime < 1000
+            var ox = fresh ? cell.clickPos.x : width / 2
+            var oy = fresh ? cell.clickPos.y : height / 2
+            rippleAnim.stop()
+            rippleInk.startX = ox
+            rippleInk.startY = oy
+            rippleInk.progress = 0
+            rippleInk.maxRadius = Model.rippleRadius(width, height, ox, oy) * spread
+            rippleAnim.restart()
+          }
+
+          Rectangle {
+            id: rippleInk
+            property real startX: 0
+            property real startY: 0
+            property real maxRadius: 0
+            property real progress: 0
+            readonly property real cx: startX + (rippleLayer.width / 2 - startX) * progress
+            readonly property real cy: startY + (rippleLayer.height / 2 - startY) * progress
+            width: maxRadius * 2 * progress
+            height: width
+            radius: width / 2
+            x: cx - width / 2
+            y: cy - height / 2
+            color: root.themeAccentColor
+            opacity: 0
+          }
+
+          ParallelAnimation {
+            id: rippleAnim
+            // Material's "fast out, slow in" deceleration curve.
+            NumberAnimation {
+              target: rippleInk; property: "progress"; from: 0; to: 1; duration: 550
+              easing.type: Easing.BezierSpline; easing.bezierCurve: [0.4, 0.0, 0.2, 1.0, 1.0, 1.0]
+            }
+            SequentialAnimation {
+              NumberAnimation { target: rippleInk; property: "opacity"; from: 0; to: 0.4; duration: 75 }
+              PauseAnimation { duration: 150 }
+              NumberAnimation { target: rippleInk; property: "opacity"; to: 0; duration: 425; easing.type: Easing.OutQuad }
+            }
+          }
+        }
+
         MouseArea {
           anchors.fill: parent
           acceptedButtons: Qt.LeftButton
           cursorShape: Qt.PointingHandCursor
-          onClicked: root.focusWorkspace(modelData)
+          onClicked: function (mouse) {
+            cell.clickPos = Qt.point(mouse.x, mouse.y)
+            cell.clickTime = Date.now()
+            root.focusWorkspace(modelData)
+          }
         }
       }
     }
